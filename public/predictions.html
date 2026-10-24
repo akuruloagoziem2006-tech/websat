@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebSat predictions</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background: #fafafa; color: #222; line-height: 1.5; }
+  h1 { font-size: 1.3rem; margin-bottom: 8px; }
+  a { color: #5b3fb5; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 14px; margin: 12px 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; color: #666; margin-bottom: 6px; }
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: .75rem; color: #fff; }
+  .open { background: #888; }
+  .confirmed { background: #2e7d32; }
+  .contradicted { background: #c62828; }
+  .inconclusive { background: #b26a00; }
+  .trend { font-weight: 600; margin: 4px 0; }
+  .forecast { font-size: .95rem; margin: 4px 0; }
+  .evidence { font-size: .85rem; color: #555; margin-top: 8px; border-top: 1px solid #eee; padding-top: 6px; }
+  .error { color: #b00020; }
+</style>
+</head>
+<body>
+<p><a href="/">&larr; Analyses</a></p>
+<h1>Predictions</h1>
+<button id="refresh">Refresh</button>
+<div id="list"></div>
+
+<script>
+const VERSION = 1, OP_PREDICTIONS = 0x05, OP_OK = 0x80;
+const dec = new TextDecoder();
+
+function encodeFrame(opcode, payload = new Uint8Array(0)) {
+  const buf = new Uint8Array(6 + payload.length);
+  const view = new DataView(buf.buffer);
+  view.setUint8(0, VERSION);
+  view.setUint8(1, opcode);
+  view.setUint32(2, payload.length);
+  buf.set(payload, 6);
+  return buf;
+}
+
+function decodeFrame(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint8(0) !== VERSION) throw new Error("unsupported version");
+  return { opcode: view.getUint8(1), payload: bytes.subarray(6, 6 + view.getUint32(2)) };
+}
+
+class Reader {
+  constructor(bytes) {
+    this.bytes = bytes;
+    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    this.pos = 0;
+  }
+  u16() { const v = this.view.getUint16(this.pos); this.pos += 2; return v; }
+  u32() { const v = this.view.getUint32(this.pos); this.pos += 4; return v; }
+  str() {
+    const n = this.u16();
+    const s = dec.decode(this.bytes.subarray(this.pos, this.pos + n));
+    this.pos += n;
+    return s;
+  }
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+async function load() {
+  const list = document.getElementById("list");
+  list.textContent = "Loading...";
+  try {
+    const res = await fetch("/bin", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: encodeFrame(OP_PREDICTIONS, new Uint8Array([0, 30])),
+    });
+    const { opcode, payload } = decodeFrame(new Uint8Array(await res.arrayBuffer()));
+    if (opcode !== OP_OK) throw new Error(new Reader(payload).str());
+
+    const r = new Reader(payload);
+    const count = r.u16();
+    list.innerHTML = "";
+    list.className = "";
+    if (!count) { list.className = "empty"; list.textContent = "No predictions yet."; return; }
+
+    for (let i = 0; i < count; i++) {
+      const id = r.u32();
+      const analysisId = r.u32();
+      const trend = r.str();
+      const forecast = r.str();
+      const confidence = r.str();
+      const days = r.u16();
+      const status = r.str();
+      const evidence = r.str();
+
+      const card = el("div", "card");
+      const top = el("div", "top");
+      top.append(
+        el("span", "", `#${id} · analysis #${analysisId} · ${days}-day window`),
+        el("span", "badge " + status, status),
+      );
+      card.append(
+        top,
+        el("div", "trend", `${trend} (${confidence} confidence)`),
+        el("div", "forecast", forecast),
+      );
+      if (evidence) card.append(el("div", "evidence", evidence));
+      list.append(card);
+    }
+  } catch (e) {
+    list.className = "error";
+    list.textContent = "Error: " + e.message;
+  }
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>

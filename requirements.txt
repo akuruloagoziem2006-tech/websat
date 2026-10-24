@@ -1,0 +1,4 @@
+flask
+requests
+feedparser
+psycopg2-binary
