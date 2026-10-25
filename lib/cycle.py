@@ -3,7 +3,7 @@ from db import record_headlines
 from pipeline import run_analysis
 from verify import verify_due
 
-def daily_cycle(max_headlines=15):
+def daily_cycle(max_headlines=8):
     items = fetch_headlines()
     record_headlines(items)
     titles = [title for title, _ in items][:max_headlines]
