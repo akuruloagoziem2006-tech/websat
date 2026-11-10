@@ -5,3 +5,4 @@ __pycache__/
 .env
 .vercel
 *_key.txt
+*_token.txt
