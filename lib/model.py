@@ -4,8 +4,9 @@ import re
 import time
 import requests
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-MODEL = "gemini-3.8-flash"
+API_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+# Tried in order. Each model has separate capacity, so a busy one often succeeds on the next.
+MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"]
 RETRY_CODES = {429, 503}
 
 ANALYSIS_PROMPT = """You are analyzing recent technology and AI headlines.
@@ -28,18 +29,26 @@ def _call(prompt, max_tokens=1500):
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY is not set")
-    for attempt in range(3):
-        r = requests.post(
-            GEMINI_URL,
-            headers={"Authorization": f"Bearer {key}"},
-            json={"model": MODEL, "messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens},
-            timeout=90,
-        )
-        if r.status_code not in RETRY_CODES:
-            break
-        time.sleep(10 * (attempt + 1))
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    last_error = None
+    for cycle in range(2):
+        for model in MODELS:
+            try:
+                r = requests.post(
+                    API_URL,
+                    headers={"Authorization": f"Bearer {key}"},
+                    json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": max_tokens},
+                    timeout=60,
+                )
+            except requests.exceptions.Timeout as e:
+                last_error = e
+                continue
+            if r.status_code in RETRY_CODES:
+                last_error = requests.HTTPError(f"{model} returned {r.status_code}")
+                continue
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"]
+        time.sleep(20)
+    raise last_error
 
 def _parse_json(text):
     text = re.sub(r"```(?:json)?", "", text).strip()
