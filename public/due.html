@@ -4,78 +4,44 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WebSat due soon</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background: #fafafa; color: #222; line-height: 1.5; }
-  h1 { font-size: 1.3rem; margin-bottom: 8px; }
-  a { color: #5b3fb5; }
-  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 14px; margin: 12px 0; }
-  .meta { font-size: .85rem; color: #666; margin-bottom: 6px; }
-  .trend { font-weight: 600; margin: 4px 0; }
-  .forecast { font-size: .95rem; }
-  .empty { color: #666; }
-  .error { color: #b00020; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site.css">
 </head>
 <body>
-<p><a href="/">&larr; Analyses</a> · <a href="/predictions.html">All predictions</a></p>
-<h1>Due within 7 days</h1>
-<button id="refresh">Refresh</button>
-<div id="list"></div>
-
+<div class="page">
+<header>
+  <a class="wordmark" href="/">WebSat</a>
+  <nav aria-label="Pages">
+    <a href="/">Analyses</a>
+    <a href="/predictions.html">Predictions</a>
+    <a href="/due.html" aria-current="page">Due soon</a>
+    <a href="/compare.html">Compare</a>
+  </nav>
+</header>
+<main>
+  <h1>Due soon</h1>
+  <p class="lede">Predictions whose check windows close within the next 7 days.</p>
+  <div class="toolbar"><button id="refresh" type="button">Refresh</button></div>
+  <div id="list"></div>
+</main>
+</div>
+<script src="/client.js"></script>
 <script>
-const VERSION = 1, OP_DUE_SOON = 0x06, OP_OK = 0x80;
-const dec = new TextDecoder();
-
-function encodeFrame(opcode, payload = new Uint8Array(0)) {
-  const buf = new Uint8Array(6 + payload.length);
-  const view = new DataView(buf.buffer);
-  view.setUint8(0, VERSION);
-  view.setUint8(1, opcode);
-  view.setUint32(2, payload.length);
-  buf.set(payload, 6);
-  return buf;
-}
-
-function decodeFrame(bytes) {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (view.getUint8(0) !== VERSION) throw new Error("unsupported version");
-  return { opcode: view.getUint8(1), payload: bytes.subarray(6, 6 + view.getUint32(2)) };
-}
-
-class Reader {
-  constructor(bytes) {
-    this.bytes = bytes;
-    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    this.pos = 0;
-  }
-  u16() { const v = this.view.getUint16(this.pos); this.pos += 2; return v; }
-  u32() { const v = this.view.getUint32(this.pos); this.pos += 4; return v; }
-  str() {
-    const n = this.u16();
-    const s = dec.decode(this.bytes.subarray(this.pos, this.pos + n));
-    this.pos += n;
-    return s;
-  }
-}
-
 async function load() {
   const list = document.getElementById("list");
-  list.textContent = "Loading...";
+  list.textContent = "Loading…";
   try {
-    const res = await fetch("/bin", {
-      method: "POST",
-      headers: { "Content-Type": "application/octet-stream" },
-      body: encodeFrame(OP_DUE_SOON, new Uint8Array([0, 30])),
-    });
-    const { opcode, payload } = decodeFrame(new Uint8Array(await res.arrayBuffer()));
-    if (opcode !== OP_OK) throw new Error(new Reader(payload).str());
-
-    const r = new Reader(payload);
+    const r = await call(OP.DUE_SOON, 30);
     const count = r.u16();
-    list.innerHTML = "";
-    list.className = count ? "" : "empty";
-    if (!count) { list.textContent = "Nothing closes in the next 7 days."; return; }
-
+    list.replaceChildren();
+    list.className = "";
+    if (!count) {
+      list.className = "empty";
+      list.textContent = "Nothing closes in the next 7 days. Check back as the 30 to 60 day windows near their end.";
+      return;
+    }
     for (let i = 0; i < count; i++) {
       const id = r.u32();
       const analysisId = r.u32();
@@ -84,28 +50,21 @@ async function load() {
       const confidence = r.str();
       const days = r.u16();
       const closes = r.str();
-      r.str(); // evidence, unused on this page
+      r.str();
 
-      const card = document.createElement("div");
-      card.className = "card";
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.textContent = `#${id} · analysis #${analysisId} · ${days}-day window · closes ${closes}`;
-      const t = document.createElement("div");
-      t.className = "trend";
-      t.textContent = `${trend} (${confidence} confidence)`;
-      const f = document.createElement("div");
-      f.className = "forecast";
-      f.textContent = forecast;
-      card.append(meta, t, f);
-      list.append(card);
+      const row = el("article", "row");
+      row.style.setProperty("--c", STATUS_COLOR.open);
+      row.append(
+        el("h2", "", trend),
+        el("p", "forecast", forecast),
+        el("p", "meta", `Closes ${closes}, ${days}-day window, ${confidence} confidence, analysis ${analysisId}`),
+      );
+      list.append(row);
     }
   } catch (e) {
-    list.className = "error";
-    list.textContent = "Error: " + e.message;
+    showError(list, e);
   }
 }
-
 document.getElementById("refresh").addEventListener("click", load);
 load();
 </script>

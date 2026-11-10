@@ -23,3 +23,11 @@ def compare():
 @app.get("/render.js")
 def render_js():
     return send_from_directory(PUBLIC, "render.js")
+
+@app.get("/client.js")
+def client_js():
+    return send_from_directory(PUBLIC, "client.js")
+
+@app.get("/site.css")
+def site_css():
+    return send_from_directory(PUBLIC, "site.css")

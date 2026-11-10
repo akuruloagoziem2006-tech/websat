@@ -4,114 +4,73 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WebSat compare</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 16px; background: #fafafa; color: #222; line-height: 1.5; }
-  h1 { font-size: 1.3rem; margin-bottom: 8px; }
-  a { color: #5b3fb5; }
-  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 14px; margin: 12px 0; }
-  .meta { font-size: .85rem; color: #666; margin-bottom: 8px; }
-  .summary { font-size: .95rem; white-space: pre-wrap; }
-  h3 { font-size: .95rem; margin: 12px 0 4px; }
-  ul { margin: 0; padding-left: 20px; font-size: .9rem; }
-  li { margin: 4px 0; }
-  .empty { color: #666; font-size: .9rem; }
-  .error { color: #b00020; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site.css">
 </head>
 <body>
-<p><a href="/">&larr; Analyses</a> · <a href="/due.html">Due soon</a></p>
-<h1>Analyses vs. later headlines</h1>
-<button id="refresh">Refresh</button>
-<div id="list"></div>
-
+<div class="page">
+<header>
+  <a class="wordmark" href="/">WebSat</a>
+  <nav aria-label="Pages">
+    <a href="/">Analyses</a>
+    <a href="/predictions.html">Predictions</a>
+    <a href="/due.html">Due soon</a>
+    <a href="/compare.html" aria-current="page">Compare</a>
+  </nav>
+</header>
+<main>
+  <h1>Compare</h1>
+  <p class="lede">Each analysis next to the headlines fetched after it, until the next run.</p>
+  <div class="toolbar"><button id="refresh" type="button">Refresh</button></div>
+  <div id="list"></div>
+</main>
+</div>
+<script src="/render.js"></script>
+<script src="/client.js"></script>
 <script>
-const VERSION = 1, OP_COMPARE = 0x07, OP_OK = 0x80;
-const dec = new TextDecoder();
-
-function encodeFrame(opcode, payload = new Uint8Array(0)) {
-  const buf = new Uint8Array(6 + payload.length);
-  const view = new DataView(buf.buffer);
-  view.setUint8(0, VERSION);
-  view.setUint8(1, opcode);
-  view.setUint32(2, payload.length);
-  buf.set(payload, 6);
-  return buf;
-}
-
-function decodeFrame(bytes) {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (view.getUint8(0) !== VERSION) throw new Error("unsupported version");
-  return { opcode: view.getUint8(1), payload: bytes.subarray(6, 6 + view.getUint32(2)) };
-}
-
-class Reader {
-  constructor(bytes) {
-    this.bytes = bytes;
-    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    this.pos = 0;
-  }
-  u16() { const v = this.view.getUint16(this.pos); this.pos += 2; return v; }
-  u32() { const v = this.view.getUint32(this.pos); this.pos += 4; return v; }
-  str() {
-    const n = this.u16();
-    const s = dec.decode(this.bytes.subarray(this.pos, this.pos + n));
-    this.pos += n;
-    return s;
-  }
-}
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
 async function load() {
   const list = document.getElementById("list");
-  list.textContent = "Loading...";
+  list.textContent = "Loading…";
   try {
-    const res = await fetch("/bin", {
-      method: "POST",
-      headers: { "Content-Type": "application/octet-stream" },
-      body: encodeFrame(OP_COMPARE, new Uint8Array([0, 10])),
-    });
-    const { opcode, payload } = decodeFrame(new Uint8Array(await res.arrayBuffer()));
-    if (opcode !== OP_OK) throw new Error(new Reader(payload).str());
-
-    const r = new Reader(payload);
+    const r = await call(OP.COMPARE, 10);
     const count = r.u16();
-    list.innerHTML = "";
-    list.className = count ? "" : "empty";
-    if (!count) { list.textContent = "No analyses yet."; return; }
-
+    list.replaceChildren();
+    list.className = "";
+    if (!count) {
+      list.className = "empty";
+      list.textContent = "No analyses yet.";
+      return;
+    }
     for (let i = 0; i < count; i++) {
       const id = r.u32();
       const created = r.str();
       const summary = r.str();
       const later = r.str();
 
-      const card = el("div", "card");
-      card.append(el("div", "meta", `#${id} · ${created}`));
-      card.append(el("div", "summary", summary));
+      const entry = el("article", "entry");
+      const stamp = el("div", "stamp");
+      stamp.append(el("span", "", `Analysis ${id}`), el("span", "", created));
+      const body = el("div", "body");
+      renderText(body, summary);
+      entry.append(stamp, body);
 
       const items = later ? later.split(" | ").filter(Boolean) : [];
-      card.append(el("h3", "", `Headlines since then (${items.length})`));
+      entry.append(el("h2", "subhead", `${items.length} headline${items.length === 1 ? "" : "s"} since`));
       if (items.length) {
-        const ul = el("ul");
+        const ul = el("ul", "later");
         for (const title of items) ul.append(el("li", "", title));
-        card.append(ul);
+        entry.append(ul);
       } else {
-        card.append(el("div", "empty", "None yet. The next daily run will add them."));
+        entry.append(el("p", "empty", "None yet. The next daily run adds them."));
       }
-      list.append(card);
+      list.append(entry);
     }
   } catch (e) {
-    list.className = "error";
-    list.textContent = "Error: " + e.message;
+    showError(list, e);
   }
 }
-
 document.getElementById("refresh").addEventListener("click", load);
 load();
 </script>
