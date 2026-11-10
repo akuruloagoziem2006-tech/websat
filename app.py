@@ -12,6 +12,10 @@ def index():
 def predictions():
     return send_from_directory(PUBLIC, "predictions.html")
 
+@app.get("/due.html")
+def due():
+    return send_from_directory(PUBLIC, "due.html")
+
 @app.get("/render.js")
 def render_js():
     return send_from_directory(PUBLIC, "render.js")

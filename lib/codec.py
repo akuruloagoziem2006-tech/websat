@@ -31,3 +31,4 @@ def decode_frame(data: bytes):
     return opcode, payload
 OP_HISTORY = 0x04
 OP_PREDICTIONS = 0x05
+OP_DUE_SOON = 0x06

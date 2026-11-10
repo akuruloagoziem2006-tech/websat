@@ -112,3 +112,15 @@ def record_verdict(pid, status, evidence):
             "UPDATE predictions SET status = %s, verdict_at = now(), evidence = %s WHERE id = %s",
             (status, evidence, pid),
         )
+
+def list_due_soon(days=7, limit=30):
+    with cursor() as cur:
+        cur.execute(
+            "SELECT id, analysis_id, trend, forecast, confidence, check_days, status, COALESCE(evidence, ''), "
+            "created_at + make_interval(days => check_days) AS end_at "
+            "FROM predictions WHERE status = 'open' "
+            "AND created_at + make_interval(days => check_days) BETWEEN now() AND now() + make_interval(days => %s) "
+            "ORDER BY end_at LIMIT %s",
+            (days, limit),
+        )
+        return cur.fetchall()
