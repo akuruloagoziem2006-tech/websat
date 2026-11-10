@@ -32,3 +32,4 @@ def decode_frame(data: bytes):
 OP_HISTORY = 0x04
 OP_PREDICTIONS = 0x05
 OP_DUE_SOON = 0x06
+OP_COMPARE = 0x07

@@ -16,6 +16,10 @@ def predictions():
 def due():
     return send_from_directory(PUBLIC, "due.html")
 
+@app.get("/compare.html")
+def compare():
+    return send_from_directory(PUBLIC, "compare.html")
+
 @app.get("/render.js")
 def render_js():
     return send_from_directory(PUBLIC, "render.js")

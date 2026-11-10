@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from codec import *
 from news import fetch_headlines
-from db import init_schema, record_headlines, list_analyses, list_predictions, list_due_soon
+from db import init_schema, record_headlines, list_analyses, list_predictions, list_due_soon, list_comparisons
 from pipeline import run_analysis
 from cycle import daily_cycle
 
@@ -80,6 +80,17 @@ def bin_endpoint():
                      + pack_str(trend or "") + pack_str(forecast or "")
                      + pack_str(conf or "") + struct.pack(">H", days or 0)
                      + pack_str(end_at.strftime("%Y-%m-%d")) + pack_str(evidence[:1000]))
+        return reply(OP_OK, body)
+
+    if opcode == OP_COMPARE:
+        limit = struct.unpack_from(">H", payload, 0)[0] if payload else 10
+        rows = list_comparisons(limit)
+        body = struct.pack(">H", len(rows))
+        for aid, created, analysis, later in rows:
+            body += (struct.pack(">I", aid)
+                     + pack_str(created.strftime("%Y-%m-%d %H:%M UTC"))
+                     + pack_str(analysis[:600])
+                     + pack_str(later[:1500]))
         return reply(OP_OK, body)
 
     return reply(OP_ERROR, pack_str("unknown opcode"), status=400)

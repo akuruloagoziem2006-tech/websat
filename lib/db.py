@@ -124,3 +124,20 @@ def list_due_soon(days=7, limit=30):
             (days, limit),
         )
         return cur.fetchall()
+
+def list_comparisons(limit=10):
+    with cursor() as cur:
+        cur.execute(
+            "SELECT r.id, r.created_at, r.analysis, COALESCE(("
+            "  SELECT string_agg(t.title, ' | ' ORDER BY t.first_seen)"
+            "  FROM (SELECT title, first_seen FROM seen_headlines s"
+            "        WHERE s.first_seen > r.created_at"
+            "          AND s.first_seen <= COALESCE((SELECT MIN(a.created_at) FROM analyses a"
+            "                                        WHERE a.created_at > r.created_at), now())"
+            "        ORDER BY s.first_seen LIMIT 20) t"
+            "), '') AS later "
+            "FROM (SELECT id, created_at, analysis FROM analyses ORDER BY id DESC LIMIT %s) r "
+            "ORDER BY r.id DESC",
+            (limit,),
+        )
+        return cur.fetchall()
