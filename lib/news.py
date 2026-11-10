@@ -11,10 +11,10 @@ FEEDS = [
 ]
 HEADERS = {"User-Agent": "WebSat/1.0 (personal project; contact: akuruloagoziem2006@gmail.com)"}
 
-def _fetch_one(url, attempts=3):
+def _fetch_one(url, attempts=2):
     for attempt in range(attempts):
         try:
-            r = requests.get(url, headers=HEADERS, timeout=30)
+            r = requests.get(url, headers=HEADERS, timeout=15)
             r.raise_for_status()
             return feedparser.parse(r.content)
         except Exception as e:
