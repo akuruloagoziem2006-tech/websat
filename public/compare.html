@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="/site.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 <div class="page">
 <header>
   <a class="wordmark" href="/">WebSat</a>
@@ -20,11 +21,11 @@
     <a href="/compare.html" aria-current="page">Compare</a>
   </nav>
 </header>
-<main>
+<main id="main" tabindex="-1">
   <h1>Compare</h1>
   <p class="lede">Each analysis next to the headlines fetched after it, until the next run.</p>
   <div class="toolbar"><button id="refresh" type="button">Refresh</button></div>
-  <div id="list"></div>
+  <div id="list" aria-live="polite"></div>
 </main>
 </div>
 <script src="/render.js"></script>
